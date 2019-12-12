@@ -239,7 +239,224 @@ mod day2 {
     }
 }
 
+mod day3 {
+    use {
+        anyhow::{anyhow, ensure, Context, Error as AnyhowError},
+        lazy_format::lazy_format,
+        std::{cmp::{min, max}, convert::TryFrom},
+    };
+
+    const PART_ONE_INPUT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/day_input/3p1"));
+
+    fn find_closest_manhattan_distance_of_crossings(input: &str) -> Result<usize, AnyhowError> {
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        enum Direction {
+            Up,
+            Down,
+            Left,
+            Right,
+        }
+
+        let mut lines_iter = input.lines().map(|l| {
+            l.split(',').map(|raw_instruction| {
+                use Direction::*;
+                let mut chars = raw_instruction.chars();
+
+                let direction = match chars.next().ok_or_else(|| anyhow!("movement string is empty"))? {
+                    'U' => Up,
+                    'D' => Down,
+                    'L' => Left,
+                    'R' => Right,
+                    c => return Err(anyhow!("unrecognized direction char {:?}", c)),
+                };
+
+                let num_moves = match chars.clone().next() {
+                    Some(c) if c.is_digit(10) => Ok(()),
+                    c => Err(anyhow!("expected first character of number of moves to be a digit; got {:?}", c)),
+                }.and_then(|()| {
+                    let s = chars.as_str();
+                    s.parse::<isize>().map_err(AnyhowError::new)
+                }).with_context(|| anyhow!("failed to parse number of moves"))?;
+
+                Ok((direction, num_moves))
+            }).collect::<Result<Vec<_>, _>>()
+        });
+
+        let line_err = || anyhow!("expected 2 lines of input");
+        let first_wire_movements = lines_iter.next().ok_or_else(line_err)??;
+        let second_wire_movements = lines_iter.next().ok_or_else(line_err)??;
+        ensure!(lines_iter.next().is_none(), line_err());
+
+        println!("first_wire_movements: {:?}", second_wire_movements);
+        println!("second_wire_movements: {:?}", second_wire_movements);
+
+        // first pass: just see how far everything goes
+        let origin_x = 0isize;
+        let origin_y = 0isize;
+
+        let mut curr_x = origin_x;
+        let mut curr_y = origin_y;
+
+        let mut min_x = curr_x;
+        let mut max_x = curr_x;
+        let mut min_y = curr_y;
+        let mut max_y = curr_y;
+
+        [&first_wire_movements, &second_wire_movements].iter().for_each(|path| {
+            path.iter().for_each(|(direction, num_moves)| {
+                use Direction::*;
+
+                let (coord, min_, max_, is_positive) = match direction {
+                    Up => (&mut curr_y, &mut min_y, &mut max_y, true),
+                    Down => (&mut curr_y, &mut min_y, &mut max_y, false),
+                    Left => (&mut curr_x, &mut min_x, &mut max_x, false),
+                    Right => (&mut curr_x, &mut min_x, &mut max_x, true),
+                };
+
+                let multiplier = if is_positive { 1 } else { -1 };
+
+                *coord = coord.checked_add(num_moves.checked_mul(multiplier).unwrap()).unwrap();
+                *min_ = min(*min_, *coord);
+                *max_ = max(*max_, *coord);
+            })
+        });
+
+        let size_x = usize::try_from(max_x.checked_sub(min_x).unwrap().checked_add(1).unwrap()).unwrap();
+        let size_y = usize::try_from(max_y.checked_sub(min_y).unwrap().checked_add(1).unwrap()).unwrap();
+
+        println!(
+            "grid needs to span from {:?} to {:?} (so the size would be {:?})",
+            (min_x, min_y),
+            (max_x, max_y),
+            (size_x, size_y),
+        );
+
+        let mut grid = vec![(false, false); size_x.checked_mul(size_y).unwrap()];
+
+        let origin_adjusted_x = usize::try_from(origin_x.checked_sub(min_x).unwrap()).unwrap();
+        let origin_adjusted_y = usize::try_from(origin_y.checked_sub(min_y).unwrap()).unwrap();
+
+        let mut closest_crossing_point = None;
+
+        let path_and_recorder_pairs: [(&Vec<(Direction, isize)>, &dyn Fn(&mut (bool, bool))); 2] = [
+            (&first_wire_movements, &|(first, _second): &mut (_, _)| *first = true),
+            (&second_wire_movements, &|(_first, second): &mut (_, _)| *second = true),
+        ];
+
+        path_and_recorder_pairs.iter().for_each(|(path, path_recorder)| {
+            println!("NEW WIRE");
+
+            let mut curr_x = origin_adjusted_x;
+            let mut curr_y = origin_adjusted_y;
+
+            path.iter().copied().for_each(|(direction, num_moves)| {
+                use Direction::*;
+
+                println!("Executing move {:?}", (direction, num_moves));
+                let (mut_coord, other_coord, is_positive, is_vertical) = match direction {
+                    Up => (&mut curr_y, curr_x, true, true),
+                    Down => (&mut curr_y, curr_x, false, true),
+                    Left => (&mut curr_x, curr_y, false, false),
+                    Right => (&mut curr_x, curr_y, true, false),
+                };
+
+                let step: &dyn Fn(usize) -> Option<usize> = if is_positive {
+                    &|x| x.checked_add(1)
+                } else {
+                    &|x| x.checked_sub(1)
+                };
+
+                (0..num_moves).for_each(|_i| {
+                    *mut_coord = step(*mut_coord).unwrap();
+
+                    let (curr_x, curr_y) = if is_vertical {
+                        (other_coord, *mut_coord)
+                    } else {
+                        (*mut_coord, other_coord)
+                    };
+
+                    println!("Moving to {:?}", (curr_x, curr_y));
+
+                    let idx = curr_x.checked_add(curr_y.checked_mul(size_x).unwrap()).unwrap();
+                    let record = match grid.get_mut(idx) {
+                        Some(r) => r,
+                        None => panic!(
+                            "grid size is {}, but tried accessing {:?} (idx {})",
+                            grid.len(),
+                            (curr_x, curr_y),
+                            idx,
+                        ),
+                    };
+
+                    path_recorder(record);
+
+                    if let (true, true) = record {
+                        println!("Crossing: {:?}", (
+                            isize::try_from(curr_x).unwrap() - isize::try_from(origin_adjusted_x).unwrap(),
+                            isize::try_from(curr_y).unwrap() - isize::try_from(origin_adjusted_y).unwrap(),
+                        ));
+
+                        let abs_diff = |a, b| if a < b {
+                            b - a
+                        } else {
+                            a - b
+                        };
+
+                        let manhattan_distance = if is_vertical {
+                            abs_diff(origin_adjusted_y, *mut_coord) + abs_diff(origin_adjusted_x, other_coord)
+                        } else {
+                            abs_diff(origin_adjusted_x, *mut_coord) + abs_diff(origin_adjusted_y, other_coord)
+                        };
+
+                        closest_crossing_point = closest_crossing_point
+                            .map(|d| min(d, manhattan_distance))
+                            .or(Some(manhattan_distance));
+                    }
+                })
+            })
+        });
+
+        closest_crossing_point.ok_or_else(|| anyhow!("no crossing points found"))
+    }
+
+    fn part1() -> Result<usize, AnyhowError> {
+        assert_eq!(
+            find_closest_manhattan_distance_of_crossings(
+                "R8,U5,L5,D3\nU7,R6,D4,L4"
+            ).unwrap(),
+            6,
+        );
+
+        assert_eq!(
+            find_closest_manhattan_distance_of_crossings(
+                "R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83"
+            ).unwrap(),
+            159,
+        );
+
+        assert_eq!(
+            find_closest_manhattan_distance_of_crossings(
+                "R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51\nU98,R91,D20,R16,D67,R40,U7,R15,U6,R7"
+            ).unwrap(),
+            135,
+        );
+
+        find_closest_manhattan_distance_of_crossings(PART_ONE_INPUT)
+    }
+
+    pub(crate) fn solutions() -> Result<(), AnyhowError> {
+        println!("day 3");
+        println!("  part 1: {}", {
+            let part1 = part1()?;
+            lazy_format!("{:?}", part1)
+        });
+        Ok(())
+    }
+}
+
 fn main() -> Result<(), AnyhowError> {
     day1::solutions()?;
     day2::solutions()?;
+    day3::solutions()?;
+    Ok(())
 }
