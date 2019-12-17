@@ -8,5 +8,4 @@ edition = "2018"
 
 [dependencies]
 lazy_format = "1.7.4"
-re-parse = "0.1.0"
 anyhow = "1.0.25"
