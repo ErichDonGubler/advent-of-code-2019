@@ -7,3 +7,6 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.25"
 lazy_format = "1.7.4"
+
+[features]
+day6 = []

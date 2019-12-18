@@ -510,9 +510,155 @@ mod day3 {
     }
 }
 
+mod day6 {
+    use {
+        anyhow::{anyhow, Error as AnyhowError},
+        std::collections::{HashMap, HashSet},
+    };
+
+    fn parse(input: &str) -> impl Iterator<Item = Result<(&str, &str), AnyhowError>> + '_ {
+        input.lines().map(|l| {
+            let mut tokens = l.splitn(2, ')');
+            let from = tokens.next().unwrap();
+            let to = tokens
+                .next()
+                .ok_or_else(|| anyhow!("line {:?} does not have the orbital sigil"))?;
+            Ok((from, to))
+        })
+    }
+
+    pub(crate) fn part1(input: &str) -> Result<usize, AnyhowError> {
+        let mut nodes = HashMap::new();
+        let mut roots = HashSet::new();
+
+        parse(input).try_for_each(|res| -> Result<_, AnyhowError> {
+            let (from, to) = res?;
+
+            nodes
+                .entry(from)
+                .or_insert_with(|| {
+                    roots.insert(from);
+                    Vec::new()
+                })
+                .push(to);
+            nodes.entry(to).or_insert_with(Vec::new);
+            roots.remove(to);
+
+            Ok(())
+        })?;
+
+        fn count_orbits(
+            nodes: &HashMap<&str, Vec<&str>>,
+            children: std::slice::Iter<'_, &str>,
+            level: usize,
+        ) -> usize {
+            children
+                .filter_map(|c| Some(nodes.get(c)?.iter()))
+                .fold(level, |acc, cs| {
+                    acc.checked_add(count_orbits(nodes, cs, level + 1)).unwrap()
+                })
+        }
+
+        dbg!(&roots);
+        Ok(roots.iter().fold(0usize, |acc, root| {
+            acc.checked_add(count_orbits(&nodes, nodes.get(root).unwrap().iter(), 0))
+                .unwrap()
+        }))
+    }
+
+    pub(crate) fn part2(input: &str) -> Result<usize, AnyhowError> {
+        let mut links_to_parent = HashMap::new();
+
+        parse(input).try_for_each(|res| -> Result<_, AnyhowError> {
+            let (from, to) = res?;
+            if let Some(_) = links_to_parent.insert(to, from) {
+                return Err(anyhow!("parent link specified multiple times for {:?}", to));
+            }
+            Ok(())
+        })?;
+
+        // Since this is a DAG, we can take advantage of the fact that there will ALWAYS be a
+        // common ancestor if a path exists between two places.
+        let get_parent_of_expected_node = |name| links_to_parent.get(name).ok_or_else(|| anyhow!(
+            "expected parent for {:?} node, but it's missing",
+            name,
+        ));
+        let mut santa_search_node = Some(get_parent_of_expected_node("SAN")?);
+        let mut you_search_node = Some(get_parent_of_expected_node("YOU")?);
+        if santa_search_node == you_search_node {
+            return Ok(0);
+        }
+        let mut ancestors_searched = HashMap::new();
+
+        let mut transfers_from_santa = 0usize;
+        let mut transfers_from_you = 0usize;
+
+        loop {
+            enum SearchState {
+                DidWork,
+                NoMoreSearching,
+                FoundPath(usize),
+            }
+            use SearchState::*;
+
+            let mut continue_search_from = |search_node: &mut Option<_>, transfers_from_search_origin: &mut usize| {
+                use std::collections::hash_map::Entry::*;
+                let search_node_name = match search_node.as_ref() {
+                    Some(n) => *n,
+                    None => return NoMoreSearching,
+                };
+                match ancestors_searched.entry(search_node_name) {
+                    Vacant(e) => {
+                        e.insert(*transfers_from_search_origin);
+                        *search_node = links_to_parent.get(search_node_name);
+                        *transfers_from_search_origin = transfers_from_search_origin.checked_add(1).unwrap();
+                        DidWork
+                    },
+                    Occupied(e) =>
+                        FoundPath(transfers_from_search_origin.checked_add(*e.get()).unwrap()),
+                }
+            };
+
+            let work_done = match continue_search_from(&mut santa_search_node, &mut transfers_from_santa) {
+                DidWork => true,
+                NoMoreSearching => false,
+                FoundPath(path) => break Ok(path),
+            };
+
+            match continue_search_from(&mut you_search_node, &mut transfers_from_you) {
+                FoundPath(path) => break Ok(path),
+                NoMoreSearching if !work_done => break Err(anyhow!("no path found between Santa and you")),
+                _ => (),
+            };
+        }
+    }
+}
+
 fn main() -> Result<(), AnyhowError> {
-    day1::solutions()?;
-    day2::solutions()?;
-    day3::solutions()?;
+    // day1::solutions()?;
+    // day2::solutions()?;
+    // day3::solutions()?;
+
+    #[cfg(feature = "day6")]
+    {
+        println!("day 6");
+        assert_eq!(
+            day6::part1("COM)B\nB)C\nC)D\nD)E\nE)F\nB)G\nG)H\nD)I\nE)J\nJ)K\nK)L").unwrap(),
+            42,
+        );
+        let input = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/day_input/6"));
+        println!("  part 1: {} orbits found", day6::part1(input)?);
+
+        assert_eq!(
+            day6::part2("COM)B\nB)C\nC)D\nD)E\nE)F\nB)G\nG)H\nD)I\nE)J\nJ)K\nK)L\nK)YOU\nI)SAN")
+                .unwrap(),
+            4,
+        );
+        println!(
+            "  part 2: {} orbital transfers required",
+            day6::part2(input)?
+        );
+    }
+
     Ok(())
 }
