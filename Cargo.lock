@@ -4,13 +4,13 @@
 name = "advent-of-code-2019"
 version = "0.1.0"
 dependencies = [
- "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_format 1.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "anyhow"
-version = "1.0.25"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -19,5 +19,5 @@ version = "1.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [metadata]
-"checksum anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)" = "9267dff192e68f3399525901e709a48c1d3982c9c072fa32f2127a0cb0babf14"
+"checksum anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)" = "7825f6833612eb2414095684fcf6c635becf3ce97fe48cf6421321e93bfbd53c"
 "checksum lazy_format 1.7.4 (registry+https://github.com/rust-lang/crates.io-index)" = "1fcbfa370488b9d46f50882230e38c0b9e1f7bf2e8aabb883540dfe2d5985008"
