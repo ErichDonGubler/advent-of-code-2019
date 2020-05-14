@@ -5,5 +5,5 @@ authors = ["Erich Gubler <erichdongubler@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.29"
+anyhow = "1.0.30"
 lazy_format = "1.7.4"
