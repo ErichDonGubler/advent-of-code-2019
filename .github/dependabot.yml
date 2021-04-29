@@ -1,0 +1,16 @@
+version: 2
+updates:
+- package-ecosystem: cargo
+  directory: "/"
+  schedule:
+    interval: daily
+    time: "12:00"
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: anyhow
+    versions:
+    - 1.0.38
+    - 1.0.39
+  - dependency-name: lazy_format
+    versions:
+    - 1.8.3
