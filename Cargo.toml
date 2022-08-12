@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.31"
-lazy_format = "1.7.4"
+lazy_format = "2.0.0"
